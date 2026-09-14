@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f5ef" />
+    <meta
+      name="description"
+      content="つないで、ためして、小さな発明。実機なし・登録なしで遊べる、オープンソースのブロック工房。"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Patchlight — つないで、ひらめく。</title>
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="src/style.css" />
+    <script src="src/core.js" defer></script>
+    <script src="src/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">工房へ進む</a>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Patchlight ホーム"
+        ><img src="assets/icon.svg" width="32" height="32" alt="" /><span
+          >Patchlight<span class="brand-dot">.</span></span
+        ></a
+      >
+      <span class="header-note">A little space for big ideas.</span>
+      <div class="header-actions">
+        <button id="share-button" class="quiet-button">リンクで共有</button>
+        <button id="file-button" class="quiet-button">
+          保存・開く <span aria-hidden="true">↗</span>
+        </button>
+        <button
+          id="about-button"
+          class="icon-button"
+          aria-label="この工房について"
+        >
+          ?
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="headline">
+        <div>
+          <p class="eyebrow">
+            <span class="green-dot"></span> ブラウザだけで、小さな発明。
+          </p>
+          <h1 id="headline">つなぐと、<span>ひらめく。</span></h1>
+          <p class="intro-copy">
+            「もし、こうしたら？」を、ブロックで形にしよう。<br
+              class="mobile-break"
+            />道具も、コードも、いりません。
+          </p>
+        </div>
+        <div class="intro-aside">
+          <span class="scribble" aria-hidden="true">↝</span>
+          <p>押したら、光る。<br />そこから、何をつくろう？</p>
+          <span class="tiny-label">NO HARDWARE. JUST CURIOSITY.</span>
+        </div>
+      </section>
+
+      <section
+        class="studio"
+        id="workbench"
+        aria-label="ブロック工房"
+        tabindex="-1"
+      >
+        <div class="studio-toolbar">
+          <div class="project-name">
+            <span class="tiny-label">YOUR WORKBENCH</span
+            ><span id="recipe-title">はじめてのあかり</span
+            ><span id="save-status" class="save-status">自動保存</span>
+          </div>
+          <div class="toolbar-actions">
+            <button id="undo-button" class="text-button" disabled>
+              元に戻す</button
+            ><button id="restart-button" class="text-button">最初から</button>
+          </div>
+        </div>
+        <div class="lesson" id="lesson">
+          <span id="lesson-number" class="lesson-number">01</span>
+          <div>
+            <strong id="lesson-title"
+              >ボタンの右の ○ → あかりの左の ○ を順に押そう</strong
+            ><span id="lesson-detail"
+              >端子を2回クリックするだけで、つながります。</span
+            >
+          </div>
+          <span id="lesson-check" aria-hidden="true">↗</span>
+        </div>
+        <div class="studio-grid">
+          <aside class="palette" aria-labelledby="palette-heading">
+            <div class="section-heading">
+              <h2 id="palette-heading">ブロック</h2>
+              <span>＋で追加</span>
+            </div>
+            <div id="palette-list"></div>
+            <p class="palette-foot">
+              小さなきっかけが、<br />大きなアイデアに。
+            </p>
+          </aside>
+          <section class="canvas-section" aria-label="つなぐエリア">
+            <div class="canvas-topline">
+              <span><span class="live-dot"></span> いつでも実行中</span
+              ><button id="arrange-button" class="text-button">整列</button>
+            </div>
+            <div id="board-viewport" class="board-viewport">
+              <div id="board" class="board">
+                <svg id="wires" aria-hidden="true"></svg>
+                <div
+                  id="connection-hint"
+                  class="connection-hint"
+                  aria-hidden="true"
+                >
+                  <span>ここをつなごう</span
+                  ><svg viewBox="0 0 100 35">
+                    <path d="M4 28 Q48 -12 92 22 M79 22 L92 22 L90 10" />
+                  </svg>
+                </div>
+                <div id="nodes"></div>
+              </div>
+            </div>
+            <div class="canvas-footer">
+              <span id="graph-count">2 blocks · 0 links</span
+              ><span>端子でつなぐ · 見出しをつかんで移動</span>
+            </div>
+            <details class="connections">
+              <summary>つないだ線 <span id="edge-count">0</span></summary>
+              <div id="edge-list"></div>
+            </details>
+          </section>
+          <aside class="preview" aria-labelledby="preview-heading">
+            <div class="section-heading">
+              <h2 id="preview-heading">ためしてみよう</h2>
+              <span class="simulation-badge">仮想</span>
+            </div>
+            <p class="preview-description">つながった先に、何が起きる？</p>
+            <div class="little-world" id="little-world">
+              <div class="world-grid"></div>
+              <div class="window-shape"><i></i><i></i></div>
+              <div
+                id="paint-paper"
+                class="paint-paper"
+                aria-label="色のキャンバス"
+              >
+                <span>your next idea</span>
+                <div id="paint-dots"></div>
+              </div>
+              <div class="lamp">
+                <div class="lamp-glow"></div>
+                <div class="lamp-shade"></div>
+                <div class="lamp-stem"></div>
+                <div class="lamp-base"></div>
+              </div>
+              <div class="plant"><span></span><i></i><b></b></div>
+              <div class="desk-surface"></div>
+              <div id="sound-rings" class="sound-rings" aria-hidden="true">
+                ♪
+              </div>
+              <div class="world-label">
+                <span id="world-dot"></span
+                ><span id="world-state">ひらめき待ち</span>
+              </div>
+            </div>
+            <p class="preview-status" id="preview-status" role="status">
+              線をつないだら、ボタンを押してみて。
+            </p>
+            <div class="preview-controls">
+              <button
+                id="sound-button"
+                class="small-button"
+                aria-pressed="false"
+              >
+                音 OFF</button
+              ><button id="clear-button" class="small-button">
+                出力をリセット
+              </button>
+            </div>
+            <div class="event-log">
+              <div class="section-heading">
+                <h3>いま起きたこと</h3>
+                <span id="event-count">0</span>
+              </div>
+              <ol id="event-list">
+                <li class="empty-event">
+                  ブロックを動かすと、ここに届きます。
+                </li>
+              </ol>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="examples" aria-labelledby="examples-heading">
+        <div class="examples-heading">
+          <h2 id="examples-heading">次のひらめき</h2>
+          <p>レシピを開いて、少し変えてみよう。</p>
+        </div>
+        <div class="example-grid">
+          <button class="example-card" data-preset="night">
+            <span class="example-art night-art" aria-hidden="true"
+              >☾<i></i></span
+            ><span
+              ><strong>暗くなったら、あかりを。</strong
+              ><small>明るさ → 条件 → あかり</small></span
+            ><span class="example-arrow" aria-hidden="true">↗</span>
+          </button>
+          <button class="example-card" data-preset="door">
+            <span class="example-art door-art" aria-hidden="true">⌁</span
+            ><span
+              ><strong>おかえりの音。</strong
+              ><small>人感 → 待つ → 音</small></span
+            ><span class="example-arrow" aria-hidden="true">↗</span>
+          </button>
+          <button class="example-card" data-preset="color">
+            <span class="example-art color-art" aria-hidden="true"
+              ><i></i><i></i><i></i></span
+            ><span
+              ><strong>ふた振りで、ひといろ。</strong
+              ><small>動き → 数える → 色</small></span
+            ><span class="example-arrow" aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <span class="footer-brand"
+        >Patchlight<span> · </span>ひらめきは、つなぐことから。</span
+      >
+      <div>
+        <span>Independent & open source · MIT</span
+        ><button id="footer-about" class="text-button">
+          公開仕様と、この工房について ↗
+        </button>
+      </div>
+    </footer>
+    <div id="toast" class="toast" role="status" hidden></div>
+
+    <dialog id="file-dialog" aria-labelledby="file-heading">
+      <div class="dialog-top">
+        <h2 id="file-heading">レシピを持ち出そう</h2>
+        <button class="close-dialog icon-button" aria-label="閉じる">×</button>
+      </div>
+      <p>今のブロックと線を、Patchlight の JSON ファイルに保存します。</p>
+      <button id="export-button" class="primary-button">
+        JSON をダウンロード</button
+      ><label class="file-label"
+        >保存したレシピを開く<input
+          id="import-input"
+          type="file"
+          accept=".json,application/json"
+      /></label>
+      <p class="dialog-note">
+        読み込むと今のレシピを置き換えます。「元に戻す」で戻せます。実機や公式アプリのレシピ形式とは異なります。
+      </p>
+      <p id="file-error" role="alert"></p>
+    </dialog>
+    <dialog id="share-dialog" aria-labelledby="share-heading">
+      <div class="dialog-top">
+        <h2 id="share-heading">ひらめきを、手渡そう。</h2>
+        <button class="close-dialog icon-button" aria-label="閉じる">×</button>
+      </div>
+      <p id="share-description">
+        このリンクにレシピが入っています。開いた人も、そのまま遊べます。
+      </p>
+      <label>共有リンク<input id="share-url" type="text" readonly /></label
+      ><button id="copy-button" class="primary-button">リンクをコピー</button>
+      <p class="dialog-note">
+        レシピは URL の # 以降に入ります。サーバーへのアップロードはありません。
+      </p>
+    </dialog>
+    <dialog id="about-dialog" aria-labelledby="about-heading">
+      <div class="dialog-top">
+        <h2 id="about-heading">小さな発明の、はじまりに。</h2>
+        <button class="close-dialog icon-button" aria-label="閉じる">×</button>
+      </div>
+      <p>
+        Patchlight は「きっかけ → しくみ →
+        反応」を、ブラウザだけで試すブロック工房です。クリックでも、タッチでも、キーボードでも遊べます。
+      </p>
+      <h3>使い方</h3>
+      <ol>
+        <li>右の出力端子、左の入力端子の順に押してつなぐ。</li>
+        <li>ボタンを押したり、明るさを変えて動かす。</li>
+        <li>ブロックを追加して、自分だけのレシピにする。</li>
+      </ol>
+      <p>
+        Tab で選ぶ / Enter・Space で操作 / 見出しにフォーカスして矢印キーで移動
+        / Esc で接続をキャンセル。線は「つないだ線」から外せます。
+      </p>
+      <h3>公開情報から作った、独立したシミュレーター</h3>
+      <p>
+        Sony の MESH™
+        が伝える「ブロックをつないで作る」体験に着想を得ています。ソニーグループの製品ではなく、提携・承認を受けたものでもありません。MESH
+        はソニーの商標または登録商標です。
+      </p>
+      <p>
+        センサー値・光・音は仮想です。公式アプリの再現、レシピ互換、実機接続は含みません。条件・待ち時間などの動作は
+        Patchlight 独自に定義しています。
+      </p>
+      <p>
+        <a href="docs/PUBLIC-SPEC.md" target="_blank" rel="noreferrer"
+          >公開仕様の調査記録</a
+        >
+        ·
+        <a href="docs/TRADEMARKS.md" target="_blank" rel="noreferrer"
+          >名称とライセンス</a
+        >
+        · <a href="README.md" target="_blank" rel="noreferrer">README</a>
+      </p>
+      <p class="dialog-note">
+        この端末のブラウザにレシピを自動保存します。通信・解析・ログインはありません。作品のきっかけ：<a
+          href="https://hocky0301.github.io/irodori-mochi/"
+          target="_blank"
+          rel="noreferrer"
+          >彩（いろどり）</a
+        >。
+      </p>
+    </dialog>
+    <noscript
+      ><p class="noscript">
+        この工房は JavaScript を使います。ブラウザの設定で JavaScript
+        を有効にしてください。
+      </p></noscript
+    >
+  </body>
+</html>

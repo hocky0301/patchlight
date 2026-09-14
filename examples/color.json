@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "title": "ふた振りで、ひといろ。",
+  "nodes": [
+    {
+      "id": "n-1",
+      "type": "move",
+      "x": 50,
+      "y": 65,
+      "config": {}
+    },
+    {
+      "id": "n-2",
+      "type": "counter",
+      "x": 302,
+      "y": 65,
+      "config": {
+        "every": 2
+      }
+    },
+    {
+      "id": "n-3",
+      "type": "paint",
+      "x": 554,
+      "y": 65,
+      "config": {
+        "color": "#e58566"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1",
+      "from": "n-1",
+      "to": "n-2"
+    },
+    {
+      "id": "e-2",
+      "from": "n-2",
+      "to": "n-3"
+    }
+  ]
+}

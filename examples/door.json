@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "title": "おかえりの音。",
+  "nodes": [
+    {
+      "id": "n-1",
+      "type": "motion",
+      "x": 50,
+      "y": 65,
+      "config": {}
+    },
+    {
+      "id": "n-2",
+      "type": "delay",
+      "x": 302,
+      "y": 65,
+      "config": {
+        "ms": 500
+      }
+    },
+    {
+      "id": "n-3",
+      "type": "sound",
+      "x": 554,
+      "y": 65,
+      "config": {
+        "note": 523.25
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1",
+      "from": "n-1",
+      "to": "n-2"
+    },
+    {
+      "id": "e-2",
+      "from": "n-2",
+      "to": "n-3"
+    }
+  ]
+}

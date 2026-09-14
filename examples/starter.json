@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "title": "はじめてのあかり",
+  "nodes": [
+    {
+      "id": "n-1",
+      "type": "button",
+      "x": 50,
+      "y": 65,
+      "config": {}
+    },
+    {
+      "id": "n-2",
+      "type": "light",
+      "x": 302,
+      "y": 65,
+      "config": {
+        "color": "#f6b94b"
+      }
+    }
+  ],
+  "edges": []
+}
