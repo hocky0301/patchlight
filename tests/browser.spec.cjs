@@ -63,8 +63,16 @@ test('first visit: an unwired button cannot light a lamp; two port clicks make i
   await expect(page.locator('#world-state')).toHaveText('あかりがついた');
 });
 
-test('keyboard ports, Escape cancellation, and arrow movement remain usable', async ({ page }) => {
+test('keyboard ports, Escape cancellation, and arrow movement remain usable', async ({ page, browserName }) => {
   await page.goto('/');
+  // macOS WebKit's default keyboard mode includes links with Option+Tab.
+  // Exercise native navigation instead of forcing focus onto the skip link.
+  await page.keyboard.press(browserName === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab');
+  await expect(page.locator('.skip-link')).toBeFocused();
+  await expect(page.locator('.skip-link')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.skip-link')).toBeInViewport({ ratio: 1 });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#workbench')).toBeFocused();
   await buttonOutput(page).focus();
   await page.keyboard.press('Enter');
   await expect(buttonOutput(page)).toHaveAttribute('aria-pressed', 'true');
@@ -126,12 +134,14 @@ test('pointer drag changes only position and undo restores the recipe', async ({
         type: 'touchMove', touchPoints: [{ x: x + 48 * step / 8, y: y + 30 * step / 8 }],
       });
     }
+    await page.keyboard.press('Control+z');
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await session.detach();
   } else {
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + 48, y + 30, { steps: 8 });
+    await page.keyboard.press('Control+z');
     await page.mouse.up();
   }
   const moved = await readRecipe(page);
@@ -481,4 +491,252 @@ test('opening index.html directly works without a build or a web server', async 
   await page.locator('#share-button').click();
   await expect(page.locator('#file-dialog')).toBeVisible();
   await expect(page.locator('#file-error')).toContainText('JSON を保存して共有');
+});
+
+test('renaming preserves live output, validates empty names, and survives reload', async ({ page }) => {
+  await page.goto('/');
+  await connectStarter(page);
+  await pressButton(page).click();
+  const original = await readRecipe(page);
+  const title = '窓辺に、小さなひらめき。'.repeat(5);
+  await page.locator('#recipe-title').click();
+  await expect(page.locator('#title-input')).toBeFocused();
+  await page.locator('#title-input').fill('   ');
+  await page.locator('#rename-save').click();
+  await expect(page.locator('#rename-error')).not.toBeEmpty();
+  expect(await readRecipe(page)).toEqual(original);
+  await page.locator('#title-input').fill(title);
+  // The native IME owns Enter while confirming a composed Japanese character.
+  await page.locator('#title-input').dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true });
+  await expect(page.locator('#rename-dialog')).toBeVisible();
+  expect(await readRecipe(page)).toEqual(original);
+  await page.locator('#title-input').press('Enter');
+  await expect(page.locator('#rename-dialog')).not.toBeVisible();
+  await expect(page.locator('#recipe-title')).toHaveText(title);
+  await expect(page.locator('#recipe-title')).toBeFocused();
+  await expect(light(page)).toHaveAttribute('data-lit', 'true');
+  expect(await readRecipe(page)).toEqual({ ...original, title });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.locator('#recipe-title').click();
+  await page.locator('#title-input').fill('保存しない名前');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#rename-dialog')).not.toBeVisible();
+  await expect(page.locator('#recipe-title')).toHaveText(title);
+  await page.reload();
+  await expect(page.locator('#recipe-title')).toHaveText(title);
+  expect(await readRecipe(page)).toEqual({ ...original, title });
+});
+
+test('undo and redo work from keyboard, leave text editing alone, and discard obsolete redo', async ({ page }) => {
+  await page.goto('/');
+  const original = await readRecipe(page);
+  await connectStarter(page);
+  const connected = await readRecipe(page);
+  await page.locator('#workbench').focus();
+  await page.keyboard.press('Control+z');
+  expect(await readRecipe(page)).toEqual(original);
+  await expect(page.locator('#redo-button')).toBeEnabled();
+  await page.keyboard.press('Control+Shift+z');
+  expect(await readRecipe(page)).toEqual(connected);
+  await expect(page.locator('#redo-button')).toBeDisabled();
+
+  await page.locator('#recipe-title').click();
+  await page.locator('#title-input').fill('編集中の名前');
+  await page.locator('#title-input').press('Control+z');
+  expect(await readRecipe(page)).toEqual(connected);
+  await page.locator('#rename-save').focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('#rename-dialog')).toBeVisible();
+  expect(await readRecipe(page)).toEqual(connected);
+  await page.keyboard.press('Escape');
+  await page.locator('#undo-button').click();
+  await page.locator('#redo-button').click();
+  expect(await readRecipe(page)).toEqual(connected);
+  await page.locator('#undo-button').click();
+  await page.getByRole('button', { name: 'あかり 1の色を空にする', exact: true }).click();
+  await expect(page.locator('#redo-button')).toBeDisabled();
+  expect((await readRecipe(page)).edges).toEqual([]);
+  expect((await readRecipe(page)).nodes.find(node => node.type === 'light').config.color).toBe('#719bb6');
+});
+
+test('palette filters expose every kind and a newly added block is reachable', async ({ page }) => {
+  await page.goto('/');
+  const original = await readRecipe(page);
+  for (const [filter, count] of [['source', 4], ['processor', 3], ['sink', 3], ['all', 10]]) {
+    await page.locator(`[data-filter="${filter}"]`).click();
+    await expect(page.locator(`[data-filter="${filter}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.palette-item:visible')).toHaveCount(count);
+    expect(await readRecipe(page)).toEqual(original);
+  }
+  await page.locator('[data-filter="processor"]').click();
+  await page.getByRole('button', { name: '数えるを追加', exact: true }).click();
+  const counter = page.getByRole('article', { name: '数える 1 ブロック', exact: true });
+  await expect(counter).toBeVisible();
+  await expect(counter).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('button', { name: '数える 1を移動', exact: true })).toBeFocused();
+  const geometry = await counter.evaluate(node => {
+    const a = node.getBoundingClientRect(), b = document.querySelector('#board-viewport').getBoundingClientRect();
+    return { insideBoard: a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom };
+  });
+  expect(geometry.insideBoard).toBe(true);
+  expect((await readRecipe(page)).nodes).toHaveLength(3);
+  await page.locator('#undo-button').click();
+  expect(await readRecipe(page)).toEqual(original);
+});
+
+test('a blank workbench can be built into a working recipe and restored with undo', async ({ page }) => {
+  await page.goto('/?example=night');
+  const original = await readRecipe(page);
+  await page.locator('#new-button').click();
+  await expect(page.locator('.node')).toHaveCount(0);
+  await expect(page.locator('#edge-count')).toHaveText('0');
+  await expect(page.locator('#preview-status')).toContainText('ブロックを追加');
+  await page.locator('#undo-button').click();
+  expect(await readRecipe(page)).toEqual(original);
+  await page.locator('#redo-button').click();
+  await expect(page.locator('.node')).toHaveCount(0);
+  await page.getByRole('button', { name: 'ボタンを追加', exact: true }).click();
+  await page.locator('[data-filter="sink"]').click();
+  await page.getByRole('button', { name: 'あかりを追加', exact: true }).click();
+  await connectStarter(page);
+  await pressButton(page).click();
+  await expect(light(page)).toHaveAttribute('data-lit', 'true');
+});
+
+test('quick color choices preserve earlier artwork and export only safe SVG content', async ({ page }) => {
+  await page.goto('/?example=color');
+  await expect(page.locator('#little-world')).toHaveAttribute('data-scene', 'paint');
+  await expect(page.locator('#save-artwork')).toBeDisabled();
+  await expect(page.locator('#preview-status')).toContainText('振る');
+  const shake = page.getByRole('button', { name: '動き 1 振る', exact: true });
+  await shake.click();
+  await shake.click();
+  await expect(page.locator('#save-artwork')).toBeEnabled();
+  await page.getByRole('button', { name: '色 1の色を空にする', exact: true }).click();
+  await expect(page.getByRole('button', { name: '色 1の色を空にする', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#paint-dots > *')).toHaveCount(1);
+  await shake.click();
+  await shake.click();
+  await expect(page.locator('#paint-dots > *')).toHaveCount(2);
+  await expect(page.locator('#paint-dots > *').last()).toHaveCSS('background-color', 'rgb(113, 155, 182)');
+  const title = '<script>window.svgExecuted=true</script>';
+  await page.locator('#recipe-title').click();
+  await page.locator('#title-input').fill(title);
+  await page.locator('#rename-save').click();
+  await expect(page.locator('#paint-dots > *')).toHaveCount(2);
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#save-artwork').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('patchlight-artwork.svg');
+  const source = await fs.readFile(await download.path(), 'utf8');
+  const svg = await page.evaluate(source => {
+    const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
+    return {
+      invalid: Boolean(doc.querySelector('parsererror')),
+      unsafeElements: doc.querySelectorAll('script,foreignObject,image,use').length,
+      colors: [...doc.querySelectorAll('circle')].map(circle => circle.getAttribute('fill')),
+      title: doc.querySelector('text')?.textContent,
+      viewBox: doc.documentElement.getAttribute('viewBox'),
+    };
+  }, source);
+  expect(svg).toEqual({ invalid: false, unsafeElements: 0, colors: ['#e58566', '#719bb6'], title, viewBox: '0 0 800 600' });
+  expect(await page.evaluate(() => window.svgExecuted)).toBeUndefined();
+
+  const longTitle = '彩'.repeat(120);
+  await page.locator('#recipe-title').click();
+  await page.locator('#title-input').fill(longTitle);
+  await page.locator('#rename-save').click();
+  const longDownloadPromise = page.waitForEvent('download');
+  await page.locator('#save-artwork').click();
+  const longDownload = await longDownloadPromise;
+  const longSource = await fs.readFile(await longDownload.path(), 'utf8');
+  // Measure the delivered SVG with the browser's real font metrics so a legal
+  // 120-character Japanese title cannot silently run outside the image.
+  const exportedTitle = await page.evaluate(source => {
+    const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
+    const svg = document.importNode(doc.documentElement, true);
+    Object.assign(svg.style, { position: 'fixed', left: '0', top: '0', opacity: '0', pointerEvents: 'none' });
+    document.body.append(svg);
+    try {
+      const text = svg.querySelector('text');
+      const box = text.getBBox();
+      return { title: text.textContent, lines: text.querySelectorAll('tspan').length, x: box.x, y: box.y, width: box.width, height: box.height };
+    } finally { svg.remove(); }
+  }, longSource);
+  expect(exportedTitle.title).toBe(longTitle);
+  expect(exportedTitle.lines).toBe(3);
+  expect(exportedTitle.x).toBeGreaterThanOrEqual(0);
+  expect(exportedTitle.y).toBeGreaterThanOrEqual(0);
+  expect(exportedTitle.x + exportedTitle.width).toBeLessThanOrEqual(800);
+  expect(exportedTitle.y + exportedTitle.height).toBeLessThanOrEqual(600);
+  await page.locator('#clear-button').click();
+  await expect(page.locator('#save-artwork')).toBeDisabled();
+  await expect(page.locator('#paint-dots > *')).toHaveCount(0);
+});
+
+test('condition feedback stays on the block and resets after the condition passes', async ({ page }) => {
+  await page.goto('/?example=night');
+  const condition = page.getByRole('article', { name: '条件 1 ブロック', exact: true });
+  await expect(page.locator('#preview-status')).toContainText('明るさ');
+  await page.getByRole('button', { name: '明るさ 1 この値を送る', exact: true }).click();
+  await expect(condition).toHaveAttribute('data-signal', 'blocked');
+  await expect(condition.locator('[data-state-for]')).toContainText('ここで止まっています');
+  const range = page.getByRole('slider', { name: '明るさ 1 明るさ', exact: true });
+  await range.focus();
+  await page.keyboard.press('Home');
+  await expect(condition).toHaveAttribute('data-signal', 'passed');
+  await expect(condition.locator('[data-state-for]')).toContainText('条件を通りました');
+  await page.locator('#clear-button').click();
+  await expect(condition).not.toHaveAttribute('data-signal');
+  await expect(condition.locator('[data-state-for]')).not.toContainText('条件を通りました');
+});
+
+test('sound scene shows the delivered note while muted and delay feedback clears on reset', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-09-15T00:00:00Z') });
+  await page.goto('/?example=door');
+  await page.clock.pauseAt(new Date('2026-09-15T01:00:00Z'));
+  await expect(page.locator('#little-world')).toHaveAttribute('data-scene', 'sound');
+  await expect(page.locator('#preview-status')).toContainText('人が来た');
+  await expect(page.locator('#sound-button')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('combobox', { name: '音 1 音程', exact: true }).selectOption('392');
+  const delay = page.getByRole('article', { name: '待つ 1 ブロック', exact: true });
+  await page.getByRole('button', { name: '人感 1 人が来た', exact: true }).click();
+  await expect(delay).toHaveAttribute('data-signal', 'waiting');
+  await page.clock.runFor(499);
+  await expect(page.locator('#tone-note')).toHaveText('—');
+  await page.clock.runFor(1);
+  await expect(delay).toHaveAttribute('data-signal', 'passed');
+  await expect(page.locator('#tone-note')).toHaveText('G4');
+  await expect(page.locator('#tone-frequency')).toHaveText('392 Hz · 音 OFF');
+  await page.locator('#clear-button').click();
+  await expect(delay).not.toHaveAttribute('data-signal');
+  await expect(page.locator('#tone-note')).toHaveText('—');
+});
+
+test('recipes with multiple outputs offer scene selection without editing the recipe', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-filter="sink"]').click();
+  await page.getByRole('button', { name: '色を追加', exact: true }).click();
+  await connectStarter(page);
+  await buttonOutput(page).click();
+  await page.getByRole('button', { name: '色 1の入力', exact: true }).click();
+  await pressButton(page).click();
+  await expect(light(page)).toHaveAttribute('data-lit', 'true');
+  await expect(page.locator('#paint-dots > *')).toHaveCount(1);
+  const original = await readRecipe(page);
+  const eventCount = await page.locator('#event-count').textContent();
+  await expect(page.locator('#scene-tabs')).toBeVisible();
+  await page.getByRole('button', { name: 'あかりの出力を見る', exact: true }).click();
+  await expect(page.locator('#little-world')).toHaveAttribute('data-scene', 'light');
+  await expect(page.locator('#world-state')).toHaveText('あかりがついた');
+  await expect(page.locator('#preview-status')).toContainText('あかり');
+  await expect(page.locator('#save-artwork')).not.toBeVisible();
+  await page.getByRole('button', { name: '色の出力を見る', exact: true }).click();
+  await expect(page.locator('#little-world')).toHaveAttribute('data-scene', 'paint');
+  await expect(page.locator('#world-state')).toContainText('1 色');
+  await expect(page.locator('#preview-status')).toContainText('描');
+  await expect(page.locator('#save-artwork')).toBeVisible();
+  await expect(page.locator('#event-count')).toHaveText(eventCount);
+  expect(await readRecipe(page)).toEqual(original);
 });

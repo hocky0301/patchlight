@@ -10,6 +10,8 @@ An independent, open-source playground for learning how to make things with conn
 
 ## Try it in 30 seconds
 
+**[Open the playground](https://hocky0301.github.io/patchlight/)** · [Source repository](https://github.com/hocky0301/patchlight)
+
 Open `index.html` directly in a browser, or serve this directory:
 
 ```sh
@@ -36,25 +38,27 @@ The steps are visible on screen. Input and output ports are real buttons with ke
 | Count | Forward every nth event, for n = 1–100. |
 | Light | Turn on a virtual light in the chosen color; it stays on until reset/edit. |
 | Sound | Play a short synthesized tone when audio is enabled; always show visible feedback. Audio starts OFF. |
-| Color | Add a colored mark to a small canvas. Existing marks survive color changes and normal edits. |
+| Color | Add a colored mark to a dedicated canvas. Existing marks survive color changes and normal edits. |
 
 Three original example recipes teach **conditions**, **delays**, and **counting**. None are imported official recipes. The color example is a small nod to [彩 / Irodori](https://hocky0301.github.io/irodori-mochi/), the workshop project that prompted this playground ([background article](https://zenn.dev/hocky3/articles/cb5c2024ba2776)).
 
-Recipes are editable: add/remove blocks, move their headers, connect ports, change settings, remove individual links, arrange blocks, and undo up to 30 edits. Fan-out and fan-in are supported. All cycles are rejected, including those containing a Wait block.
+Recipes are editable: add/remove blocks, move their headers, connect ports, change settings, remove individual links, arrange blocks, name your recipe, start from a blank workspace, and undo/redo up to 30 edits. Fan-out and fan-in are supported. All cycles are rejected, including those containing a Wait block.
 
-**Editing wiring, positions, or logic/output settings resets pending timers and counters.** Changing the Brightness slider is a simulated input event and preserves running state. Recipe replacement and explicit output reset also clear the artwork. Outputs are aggregated in the preview; each Light block additionally shows its own state. The preview shows the latest light color, all retained paint marks (up to 36), and recent signal events.
+**Editing wiring, positions, or logic/output settings resets pending timers and counters.** Changing the Brightness slider is a simulated input event and preserves running state. Recipe replacement and explicit output reset also clear the artwork. Light, sound, and painting have their own preview scenes. The preview follows the latest output; tabs switch between output types in a mixed recipe. Outputs of the same type are aggregated; each Light block additionally shows its own state. The preview shows the latest light color, all retained paint marks (up to 36), and recent signal events.
 
 ### Save and share
 
+- Click the recipe title to rename it. Renaming preserves the current outputs.
+- **描いた色を保存** exports the retained painting as an 800×600 SVG image. This is separate from saving the editable recipe.
 - Recipes auto-save to local storage in this browser. A visible message reports unavailable storage.
 - Export/import a versioned JSON file with **保存・開く**. Imports are validated before replacing your current graph.
-- **リンクで共有** (mobile: **共有**) creates a URL containing the recipe in its fragment (`#recipe=…`). This sends no recipe to a server. A localhost link works only on the same computer; publish the static site before sharing a public link.
+- **リンクで共有** (mobile: **共有**) creates a URL containing the recipe in its fragment (`#recipe=…`). This sends no recipe to a server. Use the hosted playground when sharing with someone else; localhost links work only on the same computer.
 - Explicit recipe links seed a new session, then are consumed after successful local saving so later edits survive reload. A malformed recipe link is rejected; valid saved work is preserved. Ordinary page anchors are not recipe data.
 - The recipe contains graph/settings, not runtime counters, audio preference, event history, or a finished painting.
 
 ### Keyboard and touch
 
-Tab through controls. Enter/Space activate ports and triggers. Arrow keys move a focused block header. Escape cancels an unfinished connection. Connections can be removed using the expandable **つないだ線** list. On a phone, the workspace scrolls and the palette runs horizontally. Reduced-motion preferences disable decorative animation; signal changes remain visible.
+Tab through controls. Enter/Space activate ports and triggers. Arrow keys move a focused block header. Escape cancels an unfinished connection. Connections can be removed using the expandable **つないだ線** list. Ctrl/Cmd+Z undoes an edit; Ctrl/Cmd+Shift+Z redoes it. These shortcuts preserve native editing inside text fields. On a phone, the workspace scrolls and the palette has input/process/output filters. The three-block example recipes show all three blocks vertically. Reduced-motion preferences disable decorative animation; signal changes remain visible.
 
 ## Scope: public concepts, independent behavior
 
@@ -71,7 +75,7 @@ Web Bluetooth is an optional future adapter phase. See [ROADMAP.md](docs/ROADMAP
 Runtime: plain HTML, CSS, and classic JavaScript. Tests: Node's built-in test runner and one pinned development dependency, Playwright. No CDN, web fonts, analytics, build tool, framework, or backend.
 
 ```sh
-# Pure engine tests: no dependency installation needed
+# Engine and packaging tests: no dependency installation needed
 npm test
 
 # Browser tests: development only
@@ -96,14 +100,14 @@ src/style.css           Responsive interface and original CSS scene
 examples/               Original recipe JSON files
 scripts/serve.cjs        Zero-dependency local static server
 scripts/package.cjs     Build-free static-site packaging
-tests/                  Engine and browser acceptance tests
+tests/                  Engine, packaging, and browser acceptance tests
 docs/                   Research, architecture, phases, verification
 .github/workflows/      Automated tests and manual Pages publication
 ```
 
 ## Publish without building
 
-The project is ready to serve as static files, including under a subdirectory. No public deployment is implied by this repository.
+The playground is served as static files, including under a project subdirectory. To publish your own copy:
 
 For GitHub Pages:
 
@@ -111,7 +115,7 @@ For GitHub Pages:
 2. In **Settings → Pages → Source**, choose **GitHub Actions**.
 3. In **Actions → Publish static site**, run the workflow. It runs both test suites, copies the static assets, then deploys to Pages.
 
-The publication workflow is **manual-only**. The ordinary CI workflow never deploys. See [GitHub's custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) if repository permissions differ. Any other static host can serve the same files. `node scripts/package.cjs` copies the site into `site/`; this is packaging, not compilation. All JavaScript remains human-readable.
+The publication workflow is **manual-only**. The ordinary CI workflow never deploys. See [GitHub's custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) if repository permissions differ. Any other static host can serve the same files. `node scripts/package.cjs` copies the site into `site/`; this is packaging, not compilation. All JavaScript remains human-readable. Packaging checks local links and recipe data and writes a SHA-256 manifest; `node scripts/package.cjs --verify` checks it again. See [RELEASING.md](docs/RELEASING.md) for the complete release procedure.
 
 ## Privacy
 

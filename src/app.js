@@ -36,6 +36,10 @@
   let graph;
   let engine;
   let history = [];
+  let redoHistory = [];
+  let previewScene = 'light';
+  let lastSoundFrequency = null;
+  let pendingVisualDelays = new Map();
   let selectedPort = null;
   let currentPreset = 'starter';
   let completed = false;
@@ -59,6 +63,117 @@
   };
   function displayName(node) {
     return `${META[node.type].label} ${graph.nodes.filter(item => item.type === node.type).findIndex(item => item.id === node.id) + 1}`;
+  }
+  function updateHistoryButtons() {
+    $('#undo-button').disabled = !history.length;
+    $('#redo-button').disabled = !redoHistory.length;
+  }
+  function rememberEdit(snapshot = Core.serialize(graph)) {
+    history.push(snapshot);
+    if (history.length > 30) history.shift();
+    redoHistory = [];
+    updateHistoryButtons();
+  }
+  function undo() {
+    if (!history.length || dragging) return;
+    redoHistory.push(Core.serialize(graph));
+    currentPreset = 'custom';
+    commit(Core.parse(history.pop()), { remember: false, resetLesson: true });
+    toast('ひとつ前のレシピに戻しました。');
+  }
+  function redo() {
+    if (!redoHistory.length || dragging) return;
+    history.push(Core.serialize(graph));
+    currentPreset = 'custom';
+    commit(Core.parse(redoHistory.pop()), { remember: false, resetLesson: true });
+    toast('取り消した編集をやり直しました。');
+  }
+  function filterPalette(filter) {
+    $$('.palette-filters button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.filter === filter)));
+    $$('.palette-group').forEach(group => { group.hidden = filter !== 'all' && group.dataset.kind !== filter; });
+    $('#palette-list').scrollTo(0, 0);
+  }
+  function chooseScene(scene) {
+    previewScene = scene;
+    $('#little-world').dataset.scene = scene;
+    $$('#scene-tabs button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.scene === scene)));
+    $('#preview-description').textContent = { light: 'きっかけが、部屋のあかりに。', paint: 'ひとつの動きが、ひとつの色に。', sound: 'きっかけが、ひと音になる。' }[scene];
+    $('#save-artwork').hidden = scene !== 'paint';
+    updateSceneFeedback();
+  }
+  function updateSceneFeedback() {
+    let state = 'ひらめき待ち';
+    let message = initialPreviewMessage();
+    if (previewScene === 'light' && $('#little-world').classList.contains('lit')) {
+      state = 'あかりがついた';
+      message = 'あかりがついた！ あなたの「つなぐ」が、動きになりました。';
+    } else if (previewScene === 'paint' && paintNumber) {
+      state = `${paintNumber} 色のひらめき`;
+      message = 'ひといろ、描けた！ 色を変えて、もう一度動かしてみよう。';
+    } else if (previewScene === 'sound' && lastSoundFrequency !== null) {
+      state = '音に、届いた';
+      message = soundEnabled ? 'きっかけが、音まで届きました。' : '音まで届いた！ 「音 OFF」を押すと、次から音も聞けます。';
+    }
+    if (lastSoundFrequency !== null) $('#tone-frequency').textContent = `${lastSoundFrequency} Hz${soundEnabled ? '' : ' · 音 OFF'}`;
+    $('#world-state').textContent = state;
+    $('#preview-status').textContent = message;
+  }
+  function syncScenes() {
+    const scenes = [...new Set(graph.nodes.filter(node => Core.TYPES[node.type].kind === 'sink').map(node => node.type))];
+    if (!scenes.includes(previewScene)) previewScene = scenes[0] || 'light';
+    $('#scene-tabs').replaceChildren();
+    scenes.forEach(scene => {
+      const button = makeElement('button', null, META[scene].label);
+      button.dataset.scene = scene;
+      button.setAttribute('aria-label', `${META[scene].label}の出力を見る`);
+      $('#scene-tabs').append(button);
+    });
+    $('#scene-tabs').hidden = scenes.length < 2;
+    chooseScene(previewScene);
+    const brightness = graph.nodes.find(node => node.type === 'brightness');
+    $('#little-world').style.setProperty('--daylight', brightness ? brightness.config.value / 100 : .65);
+  }
+  function setNodeState(id, text, state) {
+    const node = $(`#node-${id}`);
+    if (!node) return;
+    node.dataset.signal = state;
+    const caption = $('[data-state-for]', node);
+    if (caption) caption.textContent = text;
+  }
+  function initialPreviewMessage() {
+    if (!graph.nodes.length) return 'ブロックを追加して、小さな仕組みをつくろう。';
+    if (!graph.edges.length) return '線をつないだら、入力を動かしてみよう。';
+    const source = graph.nodes.find(node => Core.TYPES[node.type].kind === 'source');
+    return { button: '「押す」で、つながった先を動かそう。', brightness: '明るさのつまみを動かして、条件をためそう。', motion: '「人が来た」を押して、反応を待ってみよう。', move: '「振る」を押して、色が届くまで数えてみよう。' }[source?.type] || '入力ブロックをつないで、きっかけを作ろう。';
+  }
+  function exportArtwork() {
+    if (!paintNumber) return;
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('xmlns', SVG_NS);
+    svg.setAttribute('width', '800'); svg.setAttribute('height', '600'); svg.setAttribute('viewBox', '0 0 800 600');
+    const background = document.createElementNS(SVG_NS, 'rect');
+    background.setAttribute('width', '800'); background.setAttribute('height', '600'); background.setAttribute('fill', '#faf7ed'); svg.append(background);
+    for (const dot of $('#paint-dots').children) {
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('cx', String(80 + Number(dot.dataset.x) * 6.4));
+      circle.setAttribute('cy', String(30 + Number(dot.dataset.y) * 4.6));
+      circle.setAttribute('r', '48'); circle.setAttribute('fill', dot.dataset.color); circle.setAttribute('fill-opacity', '.78'); svg.append(circle);
+    }
+    const title = document.createElementNS(SVG_NS, 'text');
+    title.setAttribute('font-size', '14'); title.setAttribute('font-family', 'sans-serif'); title.setAttribute('fill', '#506046');
+    const characters = Array.from(graph.title);
+    for (let offset = 0; offset < characters.length; offset += 40) {
+      const line = document.createElementNS(SVG_NS, 'tspan');
+      line.setAttribute('x', '48'); line.setAttribute('y', String(542 + offset / 40 * 16));
+      line.textContent = characters.slice(offset, offset + 40).join(''); title.append(line);
+    }
+    svg.append(title);
+    const credit = document.createElementNS(SVG_NS, 'text');
+    credit.setAttribute('x', '48'); credit.setAttribute('y', '592'); credit.setAttribute('font-size', '10'); credit.setAttribute('font-family', 'sans-serif'); credit.setAttribute('fill', '#78836c'); credit.textContent = 'Made with Patchlight'; svg.append(credit);
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+    const anchor = makeElement('a'); anchor.href = url; anchor.download = 'patchlight-artwork.svg'; anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('描いた色を SVG 画像に保存しました。');
   }
   function makePreset(name) {
     const layouts = {
@@ -113,6 +228,14 @@
     activeTimers.forEach(clearTimeout);
     activeTimers.clear();
     uiCounts.clear();
+    pendingVisualDelays.clear();
+    $$('.node[data-signal]').forEach(node => node.removeAttribute('data-signal'));
+    $$('[data-state-for]').forEach(caption => { caption.textContent = caption.dataset.initial; });
+    $$('.counter-fill').forEach(fill => { fill.style.width = '0%'; });
+    $('#tone-note').textContent = '—';
+    lastSoundFrequency = null;
+    $('#tone-frequency').textContent = 'まだ音は届いていません';
+    $('#little-world').classList.remove('sounding');
     voices.forEach(voice => { try { voice.stop(); } catch (_) { /* Already ended. */ } });
     voices.clear();
     $$('.node.active, .wire.active').forEach(element => element.classList.remove('active'));
@@ -121,19 +244,22 @@
     $('#little-world').classList.remove('lit');
     $('#sound-rings').classList.remove('ringing');
     if (!preserveArtwork) { $('#paint-dots').replaceChildren(); paintNumber = 0; }
+    $('#save-artwork').disabled = !paintNumber;
+    $('#paint-paper').classList.toggle('has-paint', Boolean(paintNumber));
     eventNumber = 0;
     logs = [];
     $('#event-count').textContent = '0';
     $('#event-list').replaceChildren(makeElement('li', 'empty-event', 'ブロックを動かすと、ここに届きます。'));
-    $('#world-state').textContent = 'ひらめき待ち';
-    $('#preview-status').textContent = graph.edges.length ? '入力ブロックで、きっかけを作ってみよう。' : '線をつないだら、ボタンを押してみて。';
+    updateSceneFeedback();
   }
   function commit(next, { remember = true, resetLesson = false, focus = null } = {}) {
     const validated = Core.validateGraph(next);
-    if (remember) {
-      history.push(Core.serialize(graph));
-      if (history.length > 30) history.shift();
+    const beforeDrag = dragging?.before;
+    if (dragging) {
+      try { dragging.handle.releasePointerCapture(dragging.pointerId); } catch (_) { /* Capture already released. */ }
+      dragging = null;
     }
+    if (remember) rememberEdit(beforeDrag);
     graph = validated;
     engine.setGraph(graph);
     selectedPort = null;
@@ -147,6 +273,7 @@
     const groups = [ ['source', 'きっかけ'], ['processor', 'しくみ'], ['sink', '反応'] ];
     groups.forEach(([kind, label]) => {
       const group = makeElement('div', 'palette-group');
+      group.dataset.kind = kind;
       group.append(makeElement('h3', null, label));
       Object.keys(META).filter(type => Core.TYPES[type].kind === kind).forEach(type => {
         const button = makeElement('button', 'palette-item');
@@ -210,6 +337,12 @@
         caption.append(count, document.createTextNode(' 回、届きました'));
       } else caption.textContent = '1000 ms = 1 秒';
       container.append(row, caption);
+      if (node.type === 'counter') {
+        const meter = makeElement('div', 'counter-meter');
+        meter.setAttribute('aria-hidden', 'true');
+        meter.append(makeElement('i', 'counter-fill'));
+        container.append(meter);
+      }
     } else if (node.type === 'light' || node.type === 'paint') {
       const row = makeElement('div', 'light-row');
       const sample = makeElement('span', node.type === 'light' ? 'light-preview' : 'paint-chip');
@@ -220,7 +353,17 @@
       input.dataset.config = 'color';
       label.append(input);
       row.append(sample, label);
-      container.append(row, makeElement('p', 'node-caption', META[node.type].hint));
+      const swatches = makeElement('div', 'color-swatches');
+      const colors = [['#f6b94b','こはく'],['#e58566','さんご'],['#83ad87','若葉'],['#719bb6','空'],['#a28ac1','すみれ']];
+      colors.forEach(([color, name]) => {
+        const swatch = makeElement('button', 'color-swatch');
+        swatch.dataset.color = color; swatch.dataset.node = node.id;
+        swatch.style.setProperty('--swatch', color);
+        swatch.setAttribute('aria-label', `${title}の色を${name}にする`);
+        swatch.setAttribute('aria-pressed', String(node.config.color === color));
+        swatches.append(swatch);
+      });
+      container.append(row, swatches, makeElement('p', 'node-caption', META[node.type].hint));
     } else if (node.type === 'sound') {
       const input = field('音程', makeElement('select'));
       input.dataset.config = 'note';
@@ -233,8 +376,8 @@
     }
   }
   function render() {
-    $('#recipe-title').textContent = graph.title;
-    $('#undo-button').disabled = !history.length;
+    $('#recipe-title').textContent = graph.title; $('#recipe-title').setAttribute('aria-label', `${graph.title}：作品名を変更`);
+    updateHistoryButtons();
     $('#nodes').replaceChildren();
     graph.nodes.forEach(node => {
       const element = makeElement('article', `node ${Core.TYPES[node.type].kind}`);
@@ -258,6 +401,8 @@
       header.append(handle, remove);
       const content = makeElement('div', 'node-content');
       appendConfig(content, node);
+      const stateCaption = $('.node-caption', content);
+      if (stateCaption && node.type !== 'counter') { stateCaption.dataset.stateFor = node.id; stateCaption.dataset.initial = stateCaption.textContent; }
       element.append(header, content);
       const addPort = direction => {
         const port = makeElement('button', `port ${direction}`);
@@ -274,10 +419,12 @@
     });
     drawWires();
     renderEdges();
+    syncScenes();
     updateLesson();
     $('#connection-hint').hidden = graph.edges.length > 0 || graph.nodes.length !== 2 || currentPreset !== 'starter';
   }
   function drawWires() {
+    $('#board-viewport').style.height = compact() && graph.nodes.length === 3 ? '590px' : '';
     const width = Math.max($('#board-viewport').clientWidth, compact() ? 338 : 590, ...graph.nodes.map(node => node.x + (compact() ? 200 : 210)));
     const height = Math.max(compact() ? 375 : 400, ...graph.nodes.map(node => node.y + 184));
     $('#board').style.width = `${width}px`;
@@ -301,6 +448,7 @@
       $('#wires').append(path);
     });
     $('#graph-count').textContent = `${graph.nodes.length} blocks · ${graph.edges.length} links`;
+    $('#board-overflow-hint').hidden = height <= $('#board-viewport').clientHeight && width <= $('#board-viewport').clientWidth;
   }
   function renderEdges() {
     $('#edge-count').textContent = graph.edges.length;
@@ -376,6 +524,7 @@
       const element = $(`#node-${id}`);
       viewport.scrollTo({ left: Math.max(0, x - 30), top: Math.max(0, y - 45), behavior: 'instant' });
       $('.node-drag', element).focus({ preventScroll: true });
+      element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
     } catch (error) { toast(error.message); }
   }
   function changeConfig(input) {
@@ -390,6 +539,7 @@
         // Its persisted last value must not cancel delays or reset counters.
         graph = Core.validateGraph(next);
         save();
+        $('#little-world').style.setProperty('--daylight', node.config.value / 100);
         trigger(node.id);
         return;
       }
@@ -411,6 +561,7 @@
       soundEnabled = false;
       $('#sound-button').textContent = '音 OFF';
       $('#sound-button').setAttribute('aria-pressed', 'false');
+      if (previewScene === 'sound') updateSceneFeedback();
       toast('このブラウザでは音を再生できません。反応は画面で見られます。');
     }
   }
@@ -470,48 +621,68 @@
         const count = (uiCounts.get(node.id) || 0) + 1;
         uiCounts.set(node.id, count);
         $(`[data-count-for="${node.id}"]`).textContent = count % node.config.every;
+        const fill = $('.counter-fill', element);
+        if (fill) fill.style.width = `${(count % node.config.every) / node.config.every * 100}%`;
+        element.dataset.signal = count % node.config.every ? 'counting' : 'passed';
         addLog(`${label}：${count % node.config.every || node.config.every} / ${node.config.every}`);
       } else if (node.type === 'threshold') {
         const passes = typeof event.value === 'number' && (node.config.operator === 'below' ? event.value < node.config.value : event.value > node.config.value);
         addLog(`条件：${passes ? '通りました' : 'ここで止まります'}`);
+        setNodeState(node.id, passes ? '✓ 条件を通りました' : 'ここで止まっています', passes ? 'passed' : 'blocked');
         if (!passes) $('#preview-status').textContent = `条件を満たさず、ここで止まりました。${node.config.value} より${node.config.operator === 'below' ? '小さい' : '大きい'}数値を送ってみよう。`;
-      } else if (node.type === 'delay') addLog(`${node.config.ms} ms 待っています`);
-      else if (Core.TYPES[node.type].kind === 'source') addLog(`${label} → ${node.type === 'brightness' ? event.value : 'きっかけが届きました'}`);
+      } else if (node.type === 'delay') {
+        addLog(`${node.config.ms} ms 待っています`);
+        pendingVisualDelays.set(node.id, (pendingVisualDelays.get(node.id) || 0) + 1);
+        setNodeState(node.id, `${node.config.ms} ms 待っています…`, 'waiting');
+        later(() => {
+          pendingVisualDelays.set(node.id, Math.max(0, (pendingVisualDelays.get(node.id) || 1) - 1));
+          if (!pendingVisualDelays.get(node.id)) setNodeState(node.id, '✓ 信号を送りました', 'passed');
+        }, node.config.ms);
+      } else if (Core.TYPES[node.type].kind === 'source') {
+        addLog(`${label} → ${node.type === 'brightness' ? event.value : 'きっかけが届きました'}`);
+        setNodeState(node.id, '✓ きっかけを送りました', 'passed');
+      }
       return;
     }
     if (event.kind === 'output') {
+      setNodeState(node.id, {light:'✓ あかりがついた',sound:'✓ 音まで届いた',paint:'✓ ひといろ描けた'}[event.type], 'passed');
       completed = true;
       updateLesson();
       if (event.type === 'light') {
         element?.setAttribute('data-lit', 'true');
         $('#little-world').style.setProperty('--lamp-color', event.config.color);
         $('#little-world').classList.add('lit');
-        $('#world-state').textContent = 'あかりがついた';
-        $('#preview-status').textContent = 'あかりがついた！ あなたの「つなぐ」が、動きになりました。';
         addLog('あかり → 点灯しました');
       } else if (event.type === 'paint') {
         const dot = makeElement('i', 'paint-dot');
         dot.style.backgroundColor = event.config.color;
         const angle = paintNumber * 2.4;
-        const radius = Math.min(22, Math.sqrt(paintNumber) * 5);
-        dot.style.left = `${14 + Math.cos(angle) * radius}px`;
-        dot.style.top = `${15 + Math.sin(angle) * radius}px`;
+        const radius = 10 + Math.sqrt(paintNumber % 36) * 4.6;
+        const x = 48 + Math.cos(angle) * radius;
+        const y = 43 + Math.sin(angle) * radius * .9;
+        dot.style.left = `${x}%`; dot.style.top = `${y}%`;
+        dot.dataset.x = x; dot.dataset.y = y; dot.dataset.color = event.config.color;
         $('#paint-dots').append(dot);
         if ($('#paint-dots').children.length > 36) $('#paint-dots').firstElementChild.remove();
         paintNumber++;
-        $('#world-state').textContent = `${paintNumber} 色のひらめき`;
-        $('#preview-status').textContent = 'ひといろ、描けた！ 色を変えて、もう一度動かしてみよう。';
+        $('#paint-paper').classList.add('has-paint');
+        $('#save-artwork').disabled = false;
         addLog('色 → キャンバスに描きました');
       } else if (event.type === 'sound') {
         playTone(event.config.note);
+        lastSoundFrequency = event.config.note;
+        const note = {261.63:'C4',329.63:'E4',392:'G4',523.25:'C5',659.25:'E5'}[event.config.note] || '♪';
+        $('#tone-note').textContent = note;
+        $('#tone-frequency').textContent = `${event.config.note} Hz${soundEnabled ? '' : ' · 音 OFF'}`;
+        $('#little-world').classList.add('sounding');
+        later(() => $('#little-world').classList.remove('sounding'), 900);
         $('#sound-rings').classList.remove('ringing');
         void $('#sound-rings').offsetWidth;
         $('#sound-rings').classList.add('ringing');
         later(() => $('#sound-rings').classList.remove('ringing'), 900);
-        $('#world-state').textContent = '音に、届いた';
-        $('#preview-status').textContent = soundEnabled ? 'きっかけが、音まで届きました。' : '音まで届いた！ 「音 OFF」を押すと、次から音も聞けます。';
         addLog(`音 → ${event.config.note} Hz${soundEnabled ? '' : '（音 OFF）'}`);
       }
+      chooseScene(event.type);
     }
   }
   function loadPreset(name) {
@@ -603,8 +774,7 @@
     dragging = null;
     $(`#node-${id}`)?.classList.remove('dragging');
     if (moved) {
-      history.push(before);
-      if (history.length > 30) history.shift();
+      rememberEdit(before);
       engine.setGraph(graph);
       clearOutputs(false, true);
       $('#undo-button').disabled = false;
@@ -614,7 +784,13 @@
   document.addEventListener('click', event => {
     const button = event.target.closest('button');
     if (!button) return;
-    if (button.dataset.port) selectPort(button);
+    if (button.dataset.filter) filterPalette(button.dataset.filter);
+    else if (button.dataset.scene) chooseScene(button.dataset.scene);
+    else if (button.dataset.color) {
+      const next = clone(graph); next.nodes.find(node => node.id === button.dataset.node).config.color = button.dataset.color;
+      commit(next, { focus: `[data-node="${button.dataset.node}"][data-color="${button.dataset.color}"]` });
+    }
+    else if (button.dataset.port) selectPort(button);
     else if (button.dataset.add) addBlock(button.dataset.add);
     else if (button.dataset.trigger) trigger(button.dataset.trigger);
     else if (button.dataset.remove) {
@@ -646,6 +822,11 @@
   $('#nodes').addEventListener('pointerup', finishDragging);
   $('#nodes').addEventListener('pointercancel', finishDragging);
   document.addEventListener('keydown', event => {
+    if (event.isComposing || event.keyCode === 229 || $('dialog[open]') || dragging) return;
+    const editingText = event.target.matches('input,textarea,select,[contenteditable="true"]');
+    if ((event.metaKey || event.ctrlKey) && !editingText && !event.altKey && event.key.toLowerCase() === 'z') {
+      event.preventDefault(); if (event.shiftKey) redo(); else undo(); return;
+    }
     if (event.key === 'Escape') {
       selectedPort = null;
       $$('.port').forEach(port => { port.classList.remove('selected', 'can-connect'); port.setAttribute('aria-pressed', 'false'); });
@@ -662,14 +843,30 @@
       commit(next, { focus: `[data-drag="${id}"]` });
     }
   });
-  $('#undo-button').addEventListener('click', () => {
-    if (!history.length) return;
-    currentPreset = 'custom';
-    commit(Core.parse(history.pop()), { remember: false, resetLesson: true });
-    toast('ひとつ前のレシピに戻しました。');
-  });
+  $('#undo-button').addEventListener('click', undo);
+  $('#redo-button').addEventListener('click', redo);
   $('#restart-button').addEventListener('click', () => loadPreset('starter'));
   $('#arrange-button').addEventListener('click', arrange);
+  $('#save-artwork').addEventListener('click', exportArtwork);
+  $('#new-button').addEventListener('click', () => {
+    currentPreset = 'custom';
+    commit({ version: 1, title: 'わたしのひらめき', nodes: [], edges: [] }, { resetLesson: true });
+    filterPalette('all');
+    $('#workbench').scrollIntoView({ behavior: 'instant', block: 'start' });
+    $('#workbench').focus({ preventScroll: true });
+  });
+  $('#recipe-title').addEventListener('click', () => {
+    $('#title-input').value = graph.title; $('#rename-error').textContent = ''; $('#rename-dialog').showModal(); $('#title-input').select();
+  });
+  function renameRecipe() {
+    try {
+      const next = Core.validateGraph({ ...graph, title: $('#title-input').value });
+      if (next.title !== graph.title) { rememberEdit(); graph = next; $('#recipe-title').textContent = graph.title; $('#recipe-title').setAttribute('aria-label', `${graph.title}：作品名を変更`); save(); }
+      $('#rename-dialog').close(); $('#recipe-title').focus({ preventScroll: true });
+    } catch (error) { $('#rename-error').textContent = error.message; }
+  }
+  $('#rename-save').addEventListener('click', renameRecipe);
+  $('#title-input').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); renameRecipe(); } });
   $('#clear-button').addEventListener('click', () => { clearOutputs(); toast('光・音・色と、待ち時間・カウントをリセットしました。'); });
   $('#sound-button').addEventListener('click', async () => {
     soundEnabled = !soundEnabled;
@@ -677,6 +874,7 @@
     $('#sound-button').textContent = soundEnabled ? '音 ON' : '音 OFF';
     if (soundEnabled) await unlockAudio();
     else voices.forEach(voice => { try { voice.stop(); } catch (_) { /* Already ended. */ } });
+    if (previewScene === 'sound') updateSceneFeedback();
   });
   ['#about-button', '#footer-about'].forEach(selector => $(selector).addEventListener('click', () => $('#about-dialog').showModal()));
   $('#file-button').addEventListener('click', () => { $('#file-error').textContent = ''; $('#file-dialog').showModal(); });
@@ -743,6 +941,8 @@
   engine = Core.createEngine(graph, { onEvent });
   renderPalette();
   render();
+  clearOutputs(false);
+  if (example && example !== 'starter') requestAnimationFrame(() => $('#workbench').scrollIntoView({ behavior: 'instant', block: 'start' }));
   if (loadError) toast(loadError);
   if (!storageRecoveryFailed) save();
   else $('#save-status').textContent = '保存データを復元できません';

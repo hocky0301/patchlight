@@ -71,12 +71,20 @@
         <div class="studio-toolbar">
           <div class="project-name">
             <span class="tiny-label">YOUR WORKBENCH</span
-            ><span id="recipe-title">はじめてのあかり</span
+            ><button
+              id="recipe-title"
+              class="recipe-title-button"
+              aria-label="作品名を変更"
+              title="作品名を変更"
+            >
+              はじめてのあかり</button
             ><span id="save-status" class="save-status">自動保存</span>
           </div>
           <div class="toolbar-actions">
             <button id="undo-button" class="text-button" disabled>
               元に戻す</button
+            ><button id="redo-button" class="text-button" disabled>
+              やり直す</button
             ><button id="restart-button" class="text-button">最初から</button>
           </div>
         </div>
@@ -97,6 +105,16 @@
               <h2 id="palette-heading">ブロック</h2>
               <span>＋で追加</span>
             </div>
+            <div class="palette-filters" aria-label="ブロックの種類">
+              <button data-filter="all" aria-pressed="true">すべて</button>
+              <button data-filter="source" aria-pressed="false">
+                きっかけ
+              </button>
+              <button data-filter="processor" aria-pressed="false">
+                しくみ
+              </button>
+              <button data-filter="sink" aria-pressed="false">反応</button>
+            </div>
             <div id="palette-list"></div>
             <p class="palette-foot">
               小さなきっかけが、<br />大きなアイデアに。
@@ -105,6 +123,7 @@
           <section class="canvas-section" aria-label="つなぐエリア">
             <div class="canvas-topline">
               <span><span class="live-dot"></span> いつでも実行中</span
+              ><span id="board-overflow-hint" hidden>続きはスクロール ↕</span
               ><button id="arrange-button" class="text-button">整列</button>
             </div>
             <div id="board-viewport" class="board-viewport">
@@ -137,9 +156,34 @@
               <h2 id="preview-heading">ためしてみよう</h2>
               <span class="simulation-badge">仮想</span>
             </div>
-            <p class="preview-description">つながった先に、何が起きる？</p>
+            <p class="preview-description" id="preview-description">
+              つながった先に、何が起きる？
+            </p>
+            <div
+              id="scene-tabs"
+              class="scene-tabs"
+              aria-label="出力の表示"
+              hidden
+            ></div>
             <div class="little-world" id="little-world">
               <div class="world-grid"></div>
+              <div class="sound-stage" aria-hidden="true">
+                <span class="sound-stage-label">SOUND STUDY</span>
+                <div class="speaker-body">
+                  <div class="speaker-cone"><i></i></div>
+                  <div class="speaker-light"></div>
+                </div>
+                <div class="tone-display">
+                  <strong id="tone-note">—</strong
+                  ><span id="tone-frequency">まだ音は届いていません</span>
+                </div>
+                <div class="tone-bars">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+              <div class="paint-stage-label" aria-hidden="true">
+                YOUR LITTLE CANVAS
+              </div>
               <div class="window-shape"><i></i><i></i></div>
               <div
                 id="paint-paper"
@@ -179,6 +223,9 @@
                 出力をリセット
               </button>
             </div>
+            <button id="save-artwork" class="artwork-button" hidden disabled>
+              描いた色を保存 ↗
+            </button>
             <div class="event-log">
               <div class="section-heading">
                 <h3>いま起きたこと</h3>
@@ -198,6 +245,9 @@
         <div class="examples-heading">
           <h2 id="examples-heading">次のひらめき</h2>
           <p>レシピを開いて、少し変えてみよう。</p>
+          <button id="new-button" class="text-button">
+            ＋ 空の工房からつくる
+          </button>
         </div>
         <div class="example-grid">
           <button class="example-card" data-preset="night">
@@ -232,6 +282,11 @@
       >
       <div>
         <span>Independent & open source · MIT</span
+        ><a
+          href="https://github.com/hocky0301/patchlight"
+          target="_blank"
+          rel="noreferrer"
+          >GitHub ↗</a
         ><button id="footer-about" class="text-button">
           公開仕様と、この工房について ↗
         </button>
@@ -239,6 +294,24 @@
     </footer>
     <div id="toast" class="toast" role="status" hidden></div>
 
+    <dialog id="rename-dialog" aria-labelledby="rename-heading">
+      <div class="dialog-top">
+        <h2 id="rename-heading">ひらめきに、名前を。</h2>
+        <button class="close-dialog icon-button" aria-label="閉じる">×</button>
+      </div>
+      <label
+        >作品名<input
+          id="title-input"
+          type="text"
+          maxlength="120"
+          autocomplete="off"
+      /></label>
+      <p class="dialog-note">
+        保存ファイルや共有リンクにも、この名前が入ります。
+      </p>
+      <p id="rename-error" role="alert"></p>
+      <button id="rename-save" class="primary-button">名前をつける</button>
+    </dialog>
     <dialog id="file-dialog" aria-labelledby="file-heading">
       <div class="dialog-top">
         <h2 id="file-heading">レシピを持ち出そう</h2>
@@ -289,7 +362,8 @@
       </ol>
       <p>
         Tab で選ぶ / Enter・Space で操作 / 見出しにフォーカスして矢印キーで移動
-        / Esc で接続をキャンセル。線は「つないだ線」から外せます。
+        / Esc で接続をキャンセル。Ctrl / ⌘ + Z で元に戻す、Shift
+        を加えてやり直す。線は「つないだ線」から外せます。
       </p>
       <h3>公開情報から作った、独立したシミュレーター</h3>
       <p>
@@ -312,7 +386,7 @@
         · <a href="README.md" target="_blank" rel="noreferrer">README</a>
       </p>
       <p class="dialog-note">
-        この端末のブラウザにレシピを自動保存します。通信・解析・ログインはありません。作品のきっかけ：<a
+        この端末のブラウザにレシピを自動保存します。外部API・解析・ログインは使いません。作品のきっかけ：<a
           href="https://hocky0301.github.io/irodori-mochi/"
           target="_blank"
           rel="noreferrer"

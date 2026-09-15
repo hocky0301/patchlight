@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — 2026-09-15
+
+- Dedicated light, sound, and painting scenes with mixed-output scene tabs.
+- Quick color choices, preserved marks, and safe SVG artwork export.
+- Editable recipe names, blank recipes, undo/redo buttons and keyboard shortcuts.
+- Mobile block filters and a complete three-block example canvas.
+- Visible condition, delay, and counter state; clickable mobile output controls.
+- Deterministic static packaging with checked links, recipe validation, and SHA-256 manifests.
+- Expanded browser and packaging coverage; public-repository release procedure.
+
+Human first-use timing and hardware compatibility remain unverified.
+
 ## 0.1.0 — 2026-09-15
 
 Initial local release candidate.
