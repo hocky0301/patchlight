@@ -9,7 +9,7 @@ Start with the smallest observable behavior change. Describe the input, the expe
 - Use only public primary sources for device capabilities. Link the exact source and state what has actually been tested. Do not guess commands, reinterpret undocumented bytes, or claim official-app compatibility.
 - Keep physical-device code in an optional adapter phase. Never make the no-hardware experience depend on permissions, a device, or browser Bluetooth support.
 - Do not add official logos, copied screenshots, manufacturer-style packaging, private keys, personal device serials, telemetry, or arbitrary JavaScript execution.
-- Contributions must be compatible with this project's MIT license. Retain required third-party notices.
+- By contributing, you agree that your contribution is provided under the terms in LICENSE. Retain required third-party notices.
 
 For hardware-related contributions, provide the model, firmware, OS/browser versions, tested operations, redacted evidence, and remaining limitations. A mock passing is not physical-device validation.
 

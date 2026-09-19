@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: MIT */
+/* License: see LICENSE (use requires permission) */
 (() => {
   'use strict';
   const Core = window.PatchlightCore;

@@ -2,7 +2,7 @@
 
 **Connect a little. Make something happen.**
 
-An independent, open-source playground for learning how to make things with connected blocks. Start with a button and a light; connect their ports, press the button, and see your idea work. No hardware, account, runtime dependencies, or build step.
+An independent playground for learning how to make things with connected blocks. Start with a button and a light; connect their ports, press the button, and see your idea work. No hardware, account, runtime dependencies, or build step.
 
 日本語の画面で、**「ボタンの出力 → あかりの入力 → 押す」** の3操作から始めるブロック工房です。公開技術情報に基づく設計境界は [調査記録](docs/PUBLIC-SPEC.md)、実装・公開までの段階は [フェーズ計画](docs/ROADMAP.md) を参照してください。
 
@@ -64,7 +64,7 @@ Tab through controls. Enter/Space activate ports and triggers. Arrow keys move a
 
 Patchlight is inspired by the block-connection experience of Sony's MESH™. It is **an educational simulator with its own event model**, not a drop-in replacement for the official app, firmware, SDK runtime, or physical blocks.
 
-The official BLE/GATT specifications, seven hardware families, and parts of the custom-block SDK are public. Those facts do not establish complete official-app or recipe-file compatibility. We document exactly what was confirmed in [PUBLIC-SPEC.md](docs/PUBLIC-SPEC.md), including source URLs, firmware limits, licenses, and the distinction between the SDK and MESH.js. The research date is 2026-09-15.
+The official BLE/GATT specifications, seven hardware families, and parts of the custom-block SDK are public. Those facts do not establish complete official-app or recipe-file compatibility. [PUBLIC-SPEC.md](docs/PUBLIC-SPEC.md) documents exactly what was confirmed, including source URLs, firmware limits, licenses, and the distinction between the SDK and MESH.js. The research date is 2026-09-15.
 
 This version simulates concepts corresponding to Button, LED, Move, Motion, and Brightness. Temperature/Humidity and GPIO are documented in the research but **are not implemented**. Sensor calibration, gestures inferred from accelerometers, Bluetooth frames, official recipe imports, SDK scripts, cloud services, and firmware updates are outside this release. There is no Bluetooth code or permission prompt.
 
@@ -123,7 +123,7 @@ All simulation stays in the browser. There is no telemetry, authentication, exte
 
 ## License and attribution
 
-Original project code, interface, icon, CSS illustration, and example recipes: [MIT](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for development dependencies and the distinct license of referenced technical documents.
+Original project code, interface, icon, CSS illustration, and example recipes: see [LICENSE](LICENSE). The source is published to be read; any other use, including commercial use, needs my written permission. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for development dependencies and the distinct license of referenced technical documents.
 
 Patchlight is an independent project and is not affiliated with, sponsored by, or endorsed by Sony Group Corporation or its affiliates. MESH is a trademark or registered trademark of Sony. The names appear only to identify the source of inspiration and the subject of the technical research. See [TRADEMARKS.md](docs/TRADEMARKS.md) for recommended public wording and future compatibility claims.
 
